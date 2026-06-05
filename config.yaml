@@ -1,0 +1,54 @@
+# ── App Store Competitive Intelligence Monitor — Configuration ──
+
+# Data sources
+data_source: "app_store"        # app_store (primary), google_play (TBD)
+country: "cn"                   # App Store country code
+language: "zh-Hans"             # Review language preference
+
+# Crawler settings
+crawler:
+  request_delay_sec: 2
+  max_retries: 3
+  timeout_sec: 15
+  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+  use_proxy: true
+  proxy: "http://127.0.0.1:9674"
+
+# Target apps — App Store app IDs
+targets:
+  - app_id: "387682726"         # 淘宝
+    name: "淘宝"
+    category: "电商"
+  - app_id: "1108185179"        # 拼多多
+    name: "拼多多"
+    category: "电商"
+  - app_id: "1012871328"        # 得物
+    name: "得物"
+    category: "电商"
+  - app_id: "737310995"         # 美团外卖
+    name: "美团外卖"
+    category: "外卖"
+  - app_id: "440948110"         # 快手
+    name: "快手"
+    category: "短视频"
+  - app_id: "1032287195"        # Soul
+    name: "Soul"
+    category: "社交"
+
+# Analysis
+analysis:
+  rating_alert_threshold: 0.3   # Alert if avg rating drops >0.3
+  review_fetch_count: 50        # Reviews per app per run
+  sentiment_model: "snownlp"    # snownlp or custom
+  review_alert_pct: 25          # Alert if negative review % > this
+
+# Report
+report:
+  output_dir: "./reports"
+  template: "dashboard.html"
+
+# Notification
+notify:
+  enabled: false
+  webhook_url: ""
+  channels: ["feishu"]
