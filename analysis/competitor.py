@@ -1,4 +1,7 @@
-"""App competitive comparison matrix — multi-app ranking across dimensions."""
+"""App competitive comparison matrix — multi-app ranking across dimensions.
+
+Credit card edition: includes bank name in matrix rows.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +9,7 @@ from typing import Any
 
 
 def build_comparison_matrix(storage: Any) -> dict:
-    """Build multi-dimensional comparison across all monitored apps."""
+    """Build multi-dimensional comparison across all monitored bank apps."""
     apps = storage.get_all_apps()
     if len(apps) < 2:
         return {"products": apps, "rankings": {}, "matrix": []}
@@ -24,6 +27,7 @@ def build_comparison_matrix(storage: Any) -> dict:
         matrix.append({
             "name": r["name"],
             "app_id": r["app_id"],
+            "bank": r.get("bank", ""),
             "developer": r.get("developer", ""),
             "category": r.get("category", ""),
             "rating": r["latest_rating"],
@@ -46,7 +50,7 @@ def _compute_rankings(rows: list[dict]) -> dict:
 
     def rank(key, reverse=False):
         valid = [r for r in rows if r.get(key)]
-        return [r["name"] for r in sorted(valid, key=lambda x: x.get(key, 0), reverse=reverse)[:5]]
+        return [(r["name"], r.get("bank", "")) for r in sorted(valid, key=lambda x: x.get(key, 0), reverse=reverse)[:5]]
 
     return {
         "rating_high_to_low": rank("latest_rating", reverse=True),

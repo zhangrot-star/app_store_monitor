@@ -1,54 +1,69 @@
-# ── App Store Competitive Intelligence Monitor — Configuration ──
+# ════════════════════════════════════════════════════════════════
+# 银行信用卡业务竞品监控系统 — 配置
+# Bank Credit Card Competitive Intelligence Monitor
+# ════════════════════════════════════════════════════════════════
 
-# Data sources
-data_source: "app_store"        # app_store (primary), google_play (TBD)
-country: "cn"                   # App Store country code
-language: "zh-Hans"             # Review language preference
+data_source: "app_store"
+country: "cn"
+language: "zh-Hans"
 
-# Crawler settings
 crawler:
   request_delay_sec: 2
   max_retries: 3
-  timeout_sec: 15
+  timeout_sec: 20
   user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
   use_proxy: true
   proxy: "http://127.0.0.1:9674"
 
-# Target apps — App Store app IDs
 targets:
-  - app_id: "387682726"         # 淘宝
-    name: "淘宝"
-    category: "电商"
-  - app_id: "1108185179"        # 拼多多
-    name: "拼多多"
-    category: "电商"
-  - app_id: "1012871328"        # 得物
-    name: "得物"
-    category: "电商"
-  - app_id: "737310995"         # 美团外卖
-    name: "美团外卖"
-    category: "外卖"
-  - app_id: "440948110"         # 快手
-    name: "快手"
-    category: "短视频"
-  - app_id: "1032287195"        # Soul
-    name: "Soul"
-    category: "社交"
+  - app_id: "391119604"
+    name: "掌上生活"
+    category: "银行信用卡"
+    bank: "招商银行"
+  - app_id: "392005641"
+    name: "中国建设银行"
+    category: "银行信用卡"
+    bank: "建设银行"
+  - app_id: "895682747"
+    name: "京东金融"
+    category: "银行信用卡"
+    bank: "京东"
+  - app_id: "1022142579"
+    name: "买单吧"
+    category: "银行信用卡"
+    bank: "交通银行"
+  - app_id: "462493235"
+    name: "动卡空间"
+    category: "银行信用卡"
+    bank: "中信银行"
 
-# Analysis
 analysis:
-  rating_alert_threshold: 0.3   # Alert if avg rating drops >0.3
-  review_fetch_count: 50        # Reviews per app per run
-  sentiment_model: "snownlp"    # snownlp or custom
-  review_alert_pct: 25          # Alert if negative review % > this
+  rating_alert_threshold: 0.3
+  review_fetch_count: 50
+  sentiment_model: "snownlp"
+  review_alert_pct: 25
 
-# Report
 report:
   output_dir: "./reports"
-  template: "dashboard.html"
+  template: "cc_monitor.html"
 
-# Notification
 notify:
   enabled: false
   webhook_url: ""
   channels: ["feishu"]
+
+credit_card:
+  activity_keywords:
+    新户礼: ["新户礼", "开卡礼", "首刷礼", "新客礼", "开卡送", "首刷送", "新人礼"]
+    分期优惠: ["分期", "免息", "手续费", "分期优惠", "分期0息", "账单分期"]
+    积分活动: ["积分", "积分翻倍", "多倍积分", "积分兑换", "积分加赠"]
+    权益升级: ["权益", "贵宾厅", "接送机", "龙腾", "cip", "延误险", "里程"]
+    支付优惠: ["满减", "立减", "返现", "刷卡金", "优惠券", "折扣"]
+    联名卡: ["联名卡", "联名", "主题卡", "限量卡"]
+  risk_keywords:
+    发卡问题: ["审批慢", "额度低", "拒批", "审核严", "门槛高", "不下卡"]
+    权益缩水: ["权益缩水", "权益取消", "权益降级", "温暖升级", "权益变差"]
+    客服体验: ["客服难接通", "客服差", "处理慢", "踢皮球", "投诉无门"]
+    积分贬值: ["积分过期", "积分贬值", "积分难换", "积分清零", "积分不值钱"]
+    活动套路: ["虚假宣传", "门槛高", "到账慢", "活动套路", "抢不到", "名额少"]
+  risk_alert_threshold: 3
