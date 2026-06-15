@@ -548,3 +548,275 @@ def _generate_recommendations(
         })
 
     return recs
+
+
+def generate_weekly_report(
+    comparison: dict,
+    sentiment: list[dict],
+    activities: dict,
+    output_dir: str = "./reports",
+) -> str:
+    """生成周度竞品分析报告 — 适合周会和商务策略会使用.
+
+    包含:
+      - 本周评分变化趋势
+      - 用户口碑一览（好评/差评关键词）
+      - 信用卡活动热度排行
+      - 风险预警汇总
+      - 竞品对比雷达图
+      - 商务策略建议
+    """
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    now = datetime.now()
+    week_id = now.strftime("%Y-W%W")
+    filename = f"weekly_report_{week_id}_{now.strftime('%Y%m%d')}.html"
+    filepath = Path(output_dir) / filename
+
+    matrix = comparison.get("matrix", [])
+    sentiment_data = sentiment
+    risk_alerts = activities.get("risk_alerts", [])
+    activity_summary = activities.get("activity_summary", [])
+
+    # 活动热度摘要
+    top_activities = sorted(activity_summary, key=lambda x: -x.get("count", 0))[:10]
+
+    # 风险汇总
+    critical_risks = [r for r in risk_alerts if r.get("alert_level") == "critical"]
+    warning_risks = [r for r in risk_alerts if r.get("alert_level") == "warning"]
+
+    # 图表数据
+    app_names = json.dumps([m["name"][:6] for m in matrix], ensure_ascii=False)
+    app_ratings = json.dumps([m["rating"] for m in matrix])
+    app_banks = [f"{m.get('bank','')[:3]}" for m in matrix]
+    review_counts = json.dumps([m.get("review_total", 0) for m in matrix])
+
+    pos_pcts = json.dumps([s["positive_pct"] for s in sentiment_data])
+    neg_pcts = json.dumps([s["negative_pct"] for s in sentiment_data])
+
+    radar_data = json.dumps([
+        {"name": m["name"][:6], "bank": m.get("bank", ""),
+         "rating": m["rating"],
+         "review_total": m.get("review_total", 0),
+         "positive_pct": next((s["positive_pct"] for s in sentiment_data if s["app_id"] == m["app_id"]), 50)}
+        for m in matrix
+    ], ensure_ascii=False)
+
+    weekly_template = r"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>银行信用卡竞品周度监控报告 — {{ week }}</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; background: #f5f6fa; color: #333; }
+.header { background: linear-gradient(135deg, #1a237e, #283593); color: #fff; padding: 24px 36px; }
+.header h1 { font-size: 22px; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.section { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.section h2 { font-size: 16px; color: #1a237e; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #c9a96e; }
+.chart { width: 100%; height: 340px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }
+th { background: #fafafa; font-weight: 600; color: #555; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; }
+.badge.critical { background: #ffebee; color: #c62828; }
+.badge.warning { background: #fff3e0; color: #e65100; }
+.summary-box { background: #f8f9fb; padding: 16px; border-radius: 8px; margin-bottom: 16px; line-height: 1.8; font-size: 14px; }
+.action-item { padding: 4px 0; font-size: 13px; }
+.action-item::before { content: '▸ '; color: #283593; font-weight: bold; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🏦 银行信用卡竞品周度监控报告</h1>
+  <p style="opacity:0.85;font-size:13px;">报告周期: {{ week }} | 监控App: {{ app_count }} 家 | 生成时间: {{ report_time }}</p>
+</div>
+<div class="container">
+
+  <!-- 摘要 -->
+  <div class="summary-box">
+    <strong>📊 本周摘要：</strong>
+    监控 {{ app_count }} 家银行信用卡 App · 平均评分 {{ "%.2f" % avg_rating }}★ ·
+    风险预警 {{ critical_count }} 条严重 + {{ warning_count }} 条一般 ·
+    {% if activity_total > 0 %}活动关键词命中 {{ activity_total }} 次{% else %}暂无活动数据{% endif %}
+  </div>
+
+  <!-- 竞品矩阵 -->
+  <div class="section">
+    <h2>竞品评分矩阵</h2>
+    <table>
+      <tr><th>银行</th><th>App</th><th>评分</th><th>评论数</th><th>好评率</th><th>差评率</th><th>状态</th></tr>
+      {% for m in matrix %}
+      <tr>
+        <td>{{ m.get('bank','') }}</td>
+        <td><strong>{{ m.name }}</strong></td>
+        <td>{{ "%.2f" % m.rating }}★</td>
+        <td>{{ m.get('review_total',0) }}</td>
+        <td>{{ "%.1f" % m.get('positive_pct',0) }}%</td>
+        <td>{{ "%.1f" % m.get('negative_pct',0) }}%</td>
+        <td>{% if m.get('rating_change',0) < -0.1 %}<span class="badge critical">↓下滑</span>{% elif m.get('rating_change',0) > 0.1 %}<span class="badge" style="background:#e8f5e9;color:#2e7d32;">↑上升</span>{% else %}<span style="color:#888;">→稳定</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <!-- 图表 -->
+  <div class="grid-2">
+    <div class="section"><h2>评分对比</h2><div id="ratingChart" class="chart"></div></div>
+    <div class="section"><h2>好评/差评率</h2><div id="sentimentChart" class="chart"></div></div>
+  </div>
+
+  <!-- 活动热度 -->
+  {% if top_activities %}
+  <div class="section">
+    <h2>信用卡活动热度 TOP 10</h2>
+    <table>
+      <tr><th>App</th><th>银行</th><th>活动类型</th><th>提及次数</th></tr>
+      {% for a in top_activities %}
+      <tr><td>{{ a.get('app_name','') }}</td><td>{{ a.get('bank','') }}</td><td>{{ a.category }}</td><td><strong>{{ a.count }}</strong></td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- 风险预警 -->
+  <div class="section">
+    <h2>风险预警</h2>
+    {% if critical_risks %}
+    <p style="color:#c62828;font-weight:600;margin-bottom:8px;">🔴 严重预警</p>
+    {% for r in critical_risks %}
+    <div class="action-item" style="color:#c62828;">{{ r.get('app_name','') }}({{ r.get('bank','') }}) — {{ r.category }}: 提及 {{ r.mention_count }} 次</div>
+    {% endfor %}
+    {% endif %}
+    {% if warning_risks %}
+    <p style="color:#e65100;font-weight:600;margin:12px 0 8px;">🟠 一般预警</p>
+    {% for r in warning_risks %}
+    <div class="action-item" style="color:#e65100;">{{ r.get('app_name','') }}({{ r.get('bank','') }}) — {{ r.category }}: 提及 {{ r.mention_count }} 次</div>
+    {% endfor %}
+    {% endif %}
+    {% if not critical_risks and not warning_risks %}
+    <p style="color:#2e7d32;">✅ 本周未检测到信用卡风险预警</p>
+    {% endif %}
+  </div>
+
+  <!-- 商务策略建议 -->
+  <div class="section">
+    <h2>💡 商务策略建议</h2>
+    {% for rec in weekly_recommendations %}
+    <div class="action-item"><strong>{{ rec.title }}</strong> — {{ rec.advice }}</div>
+    {% endfor %}
+  </div>
+
+</div>
+<script>
+(function() {
+  var c = echarts.init(document.getElementById('ratingChart'));
+  c.setOption({
+    tooltip: { trigger: 'axis' },
+    xAxis: { type: 'category', data: {{ app_names|safe }}, axisLabel: { fontSize: 11 } },
+    yAxis: { type: 'value', min: 3.5, max: 5, name: '★' },
+    series: [{ type: 'bar', data: {{ app_ratings|safe }}, itemStyle: { borderRadius: [4,4,0,0], color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#283593'},{offset:1,color:'#7986cb'}]) }, label: { show: true, position: 'top' } }]
+  });
+})();
+(function() {
+  var c = echarts.init(document.getElementById('sentimentChart'));
+  c.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { bottom: 0 },
+    xAxis: { type: 'category', data: {{ app_names|safe }}, axisLabel: { fontSize: 11 } },
+    yAxis: { type: 'value', max: 100, name: '%' },
+    series: [
+      { name: '好评率', type: 'bar', data: {{ pos_pcts|safe }}, itemStyle: { color: '#34C759' } },
+      { name: '差评率', type: 'bar', data: {{ neg_pcts|safe }}, itemStyle: { color: '#FF3B30' } }
+    ]
+  });
+})();
+</script>
+</body>
+</html>"""
+
+    # 计算摘要数据
+    avg_rating = sum(m["rating"] for m in matrix) / len(matrix) if matrix else 0
+    activity_total = sum(a.get("count", 0) for a in activity_summary)
+
+    # 注入好评/差评率到矩阵
+    sent_by_app = {s["app_id"]: s for s in sentiment_data}
+    for m in matrix:
+        s = sent_by_app.get(m["app_id"], {})
+        m["positive_pct"] = s.get("positive_pct", 0)
+        m["negative_pct"] = s.get("negative_pct", 0)
+
+    # 生成周度商务建议
+    weekly_recs = _generate_weekly_recommendations(matrix, risk_alerts, activity_summary)
+
+    template = Template(weekly_template)
+    html = template.render(
+        week=week_id,
+        report_time=now.strftime("%Y-%m-%d %H:%M"),
+        app_count=len(matrix),
+        avg_rating=avg_rating,
+        activity_total=activity_total,
+        critical_count=len(critical_risks),
+        warning_count=len(warning_risks),
+        matrix=matrix,
+        top_activities=top_activities,
+        critical_risks=critical_risks,
+        warning_risks=warning_risks,
+        app_names=app_names,
+        app_ratings=app_ratings,
+        pos_pcts=pos_pcts,
+        neg_pcts=neg_pcts,
+        weekly_recommendations=weekly_recs,
+    )
+
+    filepath.write_text(html, encoding="utf-8")
+    logger.info("Weekly report saved: %s", filepath)
+    return str(filepath)
+
+
+def _generate_weekly_recommendations(
+    matrix: list[dict],
+    risk_alerts: list[dict],
+    activity_summary: list[dict],
+) -> list[dict]:
+    """生成周度商务策略建议."""
+    recs = []
+
+    # 评分最低的App — 机会点
+    sorted_by_rating = sorted(matrix, key=lambda x: x["rating"])
+    if sorted_by_rating:
+        lowest = sorted_by_rating[0]
+        recs.append({
+            "title": "合作机会识别",
+            "advice": f"{lowest.get('bank','')}「{lowest['name']}」评分最低({lowest['rating']}★)，用户改善需求明显，可作为商务合作重点切入点。",
+        })
+
+    # 活动抓取洞察
+    if activity_summary:
+        by_cat: dict[str, int] = {}
+        for a in activity_summary:
+            by_cat[a["category"]] = by_cat.get(a["category"], 0) + a["count"]
+        top_cat = max(by_cat, key=by_cat.get)
+        recs.append({
+            "title": "行业活动趋势",
+            "advice": f"本周「{top_cat}」类活动在各银行App提及最多({by_cat[top_cat]}次)，建议评估是否有差异化方案可提供。",
+        })
+
+    # 风险热点
+    if risk_alerts:
+        top_risk = max(risk_alerts, key=lambda x: x.get("mention_count", 0))
+        recs.append({
+            "title": "风险预警响应",
+            "advice": f"{top_risk.get('bank','')}「{top_risk['category']}」被提及{top_risk.get('mention_count',0)}次，建议在商务谈判中提前准备应对方案。",
+        })
+
+    recs.append({
+        "title": "下周行动建议",
+        "advice": f"持续监控 {len(matrix)} 家银行 App 评分和用户口碑，重点关注排名变化。",
+    })
+
+    return recs

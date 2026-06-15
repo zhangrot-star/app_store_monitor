@@ -154,6 +154,28 @@ def cmd_notify(config, storage) -> None:
     storage.close()
 
 
+def cmd_weekly(config, storage) -> None:
+    """生成周度竞品分析报告 — 包含评分趋势、活动热度、风险预警汇总."""
+    from analysis.competitor import build_comparison_matrix
+    from analysis.sentiment import analyze_sentiment
+    from analysis.activities import analyze_credit_card_activities
+    from outputs.report import generate_weekly_report
+
+    logger.info("生成周度竞品分析报告...")
+    comparison = build_comparison_matrix(storage)
+    sentiment = analyze_sentiment(storage, config)
+    activities = analyze_credit_card_activities(storage, config)
+
+    path = generate_weekly_report(
+        comparison=comparison,
+        sentiment=sentiment,
+        activities=activities,
+        output_dir=config.report.output_dir,
+    )
+    logger.info("周度报告: %s", path)
+    storage.close()
+
+
 def cmd_run(config, storage) -> None:
     cmd_crawl(config, storage)
     logger.info("=" * 50)
@@ -182,7 +204,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="银行信用卡业务竞品监控系统")
     parser.add_argument(
         "command",
-        choices=["crawl", "analyze", "report", "activity", "notify", "run"],
+        choices=["crawl", "analyze", "report", "activity", "notify", "run", "weekly"],
         help="执行操作",
     )
     parser.add_argument(
@@ -200,6 +222,7 @@ def main() -> None:
         "activity": cmd_activity,
         "notify": cmd_notify,
         "run": cmd_run,
+        "weekly": cmd_weekly,
     }
     cmds[args.command](config, storage)
 

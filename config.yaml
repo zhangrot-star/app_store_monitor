@@ -36,6 +36,10 @@ targets:
     name: "动卡空间"
     category: "银行信用卡"
     bank: "中信银行"
+  - app_id: "1511741024"
+    name: "平安口袋银行"
+    category: "银行信用卡"
+    bank: "平安银行"
 
 analysis:
   rating_alert_threshold: 0.3
